@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/go-chi/chi"
 )
 
 type apiConfig struct {
@@ -12,25 +14,33 @@ type apiConfig struct {
 
 
 func main() {
-	mux := http.NewServeMux()
-	logmux := middlewareLog(mux)
-	corsMux := middlewareCors(logmux)
+	
 	apiConfig := apiConfig{
 		fileserverHits: 0,
 	}
 	
+	r := chi.NewRouter()
+	r.Use(middlewareLog)
+	r.Use(middlewareCors)
 
 	server := &http.Server{
 		Addr:    ":8080",
-		Handler: corsMux,
+		Handler: r,
 	}
 
-	mux.Handle("/app/", http.StripPrefix("/app", apiConfig.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
-    //mux.Handle("/assets", http.FileServer(http.Dir(".")))
+	apiRouter := chi.NewRouter()
+	r.Mount("/api", apiRouter)
 
-	mux.HandleFunc("/healthz", serverHealth)
-	mux.HandleFunc("/metrics", apiConfig.totalHits)
-	mux.HandleFunc("/reset", apiConfig.resetHits)
+	// appRouter := chi.NewRouter()
+	// r.Mount("/app" , appRouter)
+
+	fsHandler := apiConfig.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))
+	r.Handle("/app/*", fsHandler)
+	r.Handle("/app" , fsHandler)
+	apiRouter.Get("/healthz", serverHealth)
+	apiRouter.Get("/metrics", apiConfig.totalHits)
+	apiRouter.Get("/reset", apiConfig.resetHits)
+
     log.Printf("Serving files from webserver on port: %v\n", 8080)
 	if err := server.ListenAndServe(); err != nil {
 		panic(err)
