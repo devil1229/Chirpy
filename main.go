@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/go-chi/chi"
+	"github.com/devil1229/Chirpy/internal/database"
 )
 
 type apiConfig struct {
@@ -21,6 +23,15 @@ func main() {
 	apiConfig := apiConfig{
 		fileserverHits: 0,
 	}
+
+	db , err := database.NewDB("database.json")
+	if err != nil {
+		panic(err)
+	}
+	if db == nil {
+		panic("Failed to open database file")
+	}
+	defer os.Remove("database.json")
 	
 	r := chi.NewRouter()
 	r.Use(middlewareLog)
@@ -43,7 +54,7 @@ func main() {
 	apiRouter.Get("/healthz", serverHealth)
 	apiRouter.Get("/metrics", apiConfig.totalHits)
 	apiRouter.Get("/reset", apiConfig.resetHits)
-    apiRouter.Post("/validate_chirp", validateChirp)
+    apiRouter.Post("/chirps", validateAndAddChirp)
 
     log.Printf("Serving files from webserver on port: %v\n", 8080)
 	if err := server.ListenAndServe(); err != nil {
@@ -71,7 +82,7 @@ func serverHealth(w http.ResponseWriter, r *http.Request){
 	w.Write([]byte("OK"))
 }
 
-func validateChirp(w http.ResponseWriter, r *http.Request){
+func validateAndAddChirp(w http.ResponseWriter, r *http.Request){
 	type parameters struct {
         // these tags indicate how the keys in the JSON should be mapped to the struct fields
         // the struct fields must be exported (start with a capital letter) if you want them parsed
@@ -103,50 +114,51 @@ func validateChirp(w http.ResponseWriter, r *http.Request){
 		w.Write(dat)
 		
     }
-	cleanedResponse := getCleanedResponse(params.Body)
+	//chirpData := db.CreateChirp(params.Body)
+	//cleanedResponse := getCleanedResponse(params.Body)
 
-	var isValid bool
-    log.Printf("Body length : %v", len(params.Body))
-	if len(params.Body) <= 140 {
-		isValid = true
-	} else {
-		isValid = false
-	}
+	// var isValid bool
+    // log.Printf("Body length : %v", len(params.Body))
+	// if len(params.Body) <= 140 {
+	// 	isValid = true
+	// } else {
+	// 	isValid = false
+	// }
 
-	if isValid {
-		type returnVals struct {
-			// the key will be the name of struct field unless you give it an explicit JSON tag
-			CreatedAt time.Time `json:"created_at"`
-			CleanedBody string `json:"cleaned_body"`
-		}
-		respBody := returnVals{
-			CreatedAt: time.Now(),
-			CleanedBody: cleanedResponse,
-		}
-		dat, err := json.Marshal(respBody)
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			w.WriteHeader(500)
-			w.Write([]byte("Something went wrong"))
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		w.Write(dat)
+	// if isValid {
+	// 	type returnVals struct {
+	// 		// the key will be the name of struct field unless you give it an explicit JSON tag
+	// 		CreatedAt time.Time `json:"created_at"`
+	// 		CleanedBody string `json:"cleaned_body"`
+	// 	}
+	// 	respBody := returnVals{
+	// 		CreatedAt: time.Now(),
+	// 		CleanedBody: cleanedResponse,
+	// 	}
+	// 	dat, err := json.Marshal(respBody)
+	// 	if err != nil {
+	// 		log.Printf("Error marshalling JSON: %s", err)
+	// 		w.WriteHeader(500)
+	// 		w.Write([]byte("Something went wrong"))
+	// 	}
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	w.WriteHeader(200)
+	// 	w.Write(dat)
 	
-	} else {
-		errMessage := errMessage{
-			Error: "Chirp is too long",
-		}
-		dat, err := json.Marshal(errMessage)
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			w.WriteHeader(500)
-			w.Write([]byte("Something went wrong"))
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400)
-		w.Write(dat)
-	}
+	// } else {
+	// 	errMessage := errMessage{
+	// 		Error: "Chirp is too long",
+	// 	}
+	// 	dat, err := json.Marshal(errMessage)
+	// 	if err != nil {
+	// 		log.Printf("Error marshalling JSON: %s", err)
+	// 		w.WriteHeader(500)
+	// 		w.Write([]byte("Something went wrong"))
+	// 	}
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	w.WriteHeader(400)
+	// 	w.Write(dat)
+	// }
 }
 
 func getCleanedResponse(msg string) string {
